@@ -34,28 +34,24 @@ const PRODUCTION_PLUGINS = [
   })
 ];
 
-module.exports = function(/*env*/{production}/*, argv*/) {
+module.exports = function(/* env */ { production } /*, argv */) {
   // Base entry client (for MPA add extra chunks here)
-  const baseClient = {
+  const client = {
     main: [
       path.resolve(SRC_DIR, 'index.js')
     ]
   };
 
-  // Get entry client based on environment,
-  // adding 'react-hot-loader' client to each chunk,
-  // while also adding a separate vendor chunk
-  const client = (base => {
-    if (!production) {
-      for (let i = 0, chunks = Object.keys(base); i < chunks.length; ++i) {
-        base[chunks[i]].unshift('react-hot-loader/patch');
-      }
+  // Based on the base entry client,
+  // adding 'react-hot-loader' client to each chunk
+  const devClient = base => {
+    let chunks = Object.keys(base);
+    for (let i = 0; i < chunks.length; ++i) {
+      base[chunks[i]].unshift('react-hot-loader/patch');
     }
 
-    return Object.assign(base, {
-      vendor: ['react']
-    });
-  })(baseClient);
+    return base;
+  };
 
   const extractStyles = new ExtractTextWebpackPlugin({
     allChunks: true,
@@ -75,7 +71,10 @@ module.exports = function(/*env*/{production}/*, argv*/) {
       publicPath: '/assets/'
     },
     devtool: production ? undefined : 'cheap-module-eval-source-map',
-    entry: client,
+    entry: {
+      ...(production ? client : devClient(client)),
+      vendor: ['react']
+    },
     module: {
       rules: [{
         test: /\.jsx?$/,
@@ -99,6 +98,15 @@ module.exports = function(/*env*/{production}/*, argv*/) {
             }
           }]
         })
+      }, {
+        test: /\.(woff2?(\?v=\d+\.\d+\.\d+)?|ttf|eot|svg)$/,
+        exclude: /node_modules|SVGIcon\/icons/,
+        use: {
+          loader: 'url-loader',
+          options: {
+            limit: 10000
+          }
+        }
       }]
     },
     output: {
@@ -128,11 +136,11 @@ module.exports = function(/*env*/{production}/*, argv*/) {
       new HtmlWebpackPlugin({
         alwaysWriteToDisk: true,
         appMountId: 'react-root',
-        externalCSS: [
-          'https://fonts.googleapis.com/css?family=Roboto:300,400,500,700%7CMaterial+Icons'
-        ],
         filename: '../index.html',
         inject: false,
+        links: [
+          'https://fonts.googleapis.com/css?family=Roboto:300,400,500,700%7CMaterial+Icons'
+        ],
         minify: /* !production ? false : */ {
           caseSensitive: true,
           collapseBooleanAttributes: true,
